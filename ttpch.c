@@ -1,4 +1,4 @@
-// For license details see file LICENSE
+/* For license details see file LICENSE */
 
 #include <errno.h>
 #include <libmnl/libmnl.h>
@@ -38,29 +38,54 @@ void die(const char *msg)
 
 int cb(const struct nlmsghdr *nlh, void *data)
 {
-	struct rtmsg *hdr;
+	struct rtmsg *rthdr;
+	const struct nlattr *attr;
+	const char *dst;
+	const size_t clen = 67;
+	char cmd[clen];
 
-//	if (!nlh || nlh->nlmsg_pid || nlh->nlmsg_seq || nlh->nlmsg_flags)
-//		return MNL_CB_OK;
 	if (nlh->nlmsg_type != RTM_NEWROUTE && nlh->nlmsg_type != RTM_DELROUTE)
 		return MNL_CB_OK;
 
-	hdr = mnl_nlmsg_get_payload(nlh);
-	if (hdr->rtm_dst_len == 0) /* We don't want to handle the default route */
+	rthdr = mnl_nlmsg_get_payload(nlh);
+	if (rthdr->rtm_dst_len == 0) /* We don't want to handle the default route */
 		return MNL_CB_OK;
-	if (hdr->rtm_family != AF_INET) /* Tor only works with IPv4 atm */
+	if (rthdr->rtm_family != AF_INET) /* Tor only works with IPv4 atm */
 		return MNL_CB_OK;
-	if (hdr->rtm_scope != RT_SCOPE_LINK)
+	if (rthdr->rtm_scope != RT_SCOPE_LINK)
 		return MNL_CB_OK;
-/*	if (hdr->rtm_table != RT_TABLE_MAIN)
+/*	if (rthdr->rtm_table != RT_TABLE_MAIN)
 		return MNL_CB_OK; */
-	if (hdr->rtm_type != RTN_UNICAST)
+	if (rthdr->rtm_type != RTN_UNICAST)
 		return MNL_CB_OK;
 
-	eprintf("ipv4 route-%s: %u %u %u %u   %x",
+/*	eprintf("ipv4 route-%s: %u %u %u %u   %x",
 			nlh->nlmsg_type == RTM_NEWROUTE ? "add" : "del",
-			hdr->rtm_table, hdr->rtm_protocol, hdr->rtm_scope, hdr->rtm_type, hdr->rtm_flags);
-	mnl_nlmsg_fprintf(stdout, nlh, nlh->nlmsg_len, sizeof(struct rtmsg));
+			rthdr->rtm_table, rthdr->rtm_protocol, rthdr->rtm_scope, rthdr->rtm_type, rthdr->rtm_flags);
+	mnl_nlmsg_fprintf(stdout, nlh, nlh->nlmsg_len, sizeof(struct rtmsg)); */
+
+	mnl_attr_for_each(attr, nlh, sizeof(struct rtmsg)) {
+		if (attr->nla_type != RTA_DST)
+			continue;
+
+		dst = mnl_attr_get_payload(attr);
+
+		/* unfortunately iptables provides no stable API and they recommend
+		 * calling the command in their FAQ.
+		 * TODO: Use fork, exec and wait instead to avoid the extra shell
+		 * process */
+		snprintf(cmd, clen, "iptables -w -%s filter_clearnet -d %hhu.%hhu.%hhu.%hhu/%hhu -j ACCEPT",
+		         nlh->nlmsg_type == RTM_NEWROUTE ? "A" : "D",
+		         dst[0], dst[1], dst[2], dst[3], rthdr->rtm_dst_len);
+		if (0 == system(cmd))
+			eprintf("succesfully completed: %s", cmd);
+		snprintf(cmd, clen, "iptables -w -t nat -%s nat_clearnet -d %hhu.%hhu.%hhu.%hhu/%hhu -j ACCEPT",
+		         nlh->nlmsg_type == RTM_NEWROUTE ? "A" : "D",
+		         dst[0], dst[1], dst[2], dst[3], rthdr->rtm_dst_len);
+		if (0 == system(cmd))
+			eprintf("succesfully completed: %s", cmd);
+		return MNL_CB_OK;
+	}
 
 	return MNL_CB_OK;
 }
