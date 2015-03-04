@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define SOCK_BUF_SIZ (sysconf(_SC_PAGESIZE) < 8192L ? sysconf(_SC_PAGESIZE) : 8192L)
@@ -40,9 +41,11 @@ int cb(const struct nlmsghdr *nlh, void *data)
 {
 	struct rtmsg *rthdr;
 	const struct nlattr *attr;
-	const char *dst;
-	const size_t clen = 67;
-	char cmd[clen];
+	const char *d;
+	const size_t dstlen = 19;
+	char dst[dstlen];
+	pid_t child;
+	int add;
 
 	if (nlh->nlmsg_type != RTM_NEWROUTE && nlh->nlmsg_type != RTM_DELROUTE)
 		return MNL_CB_OK;
@@ -68,22 +71,38 @@ int cb(const struct nlmsghdr *nlh, void *data)
 		if (attr->nla_type != RTA_DST)
 			continue;
 
-		dst = mnl_attr_get_payload(attr);
+		add = nlh->nlmsg_type == RTM_NEWROUTE;
+		d = mnl_attr_get_payload(attr);
 
-		/* unfortunately iptables provides no stable API and they recommend
-		 * calling the command in their FAQ.
-		 * TODO: Use fork, exec and wait instead to avoid the extra shell
-		 * process */
-		snprintf(cmd, clen, "iptables -w -%s filter_clearnet -d %hhu.%hhu.%hhu.%hhu/%hhu -j ACCEPT",
-		         nlh->nlmsg_type == RTM_NEWROUTE ? "A" : "D",
-		         dst[0], dst[1], dst[2], dst[3], rthdr->rtm_dst_len);
-		if (0 == system(cmd))
-			eprintf("succesfully completed: %s", cmd);
-		snprintf(cmd, clen, "iptables -w -t nat -%s nat_clearnet -d %hhu.%hhu.%hhu.%hhu/%hhu -j ACCEPT",
-		         nlh->nlmsg_type == RTM_NEWROUTE ? "A" : "D",
-		         dst[0], dst[1], dst[2], dst[3], rthdr->rtm_dst_len);
-		if (0 == system(cmd))
-			eprintf("succesfully completed: %s", cmd);
+		/* unfortunately iptables provides no stable API. The devs recommend
+		 * calling the command in their FAQ. */
+
+		snprintf(dst, dstlen, "%hhu.%hhu.%hhu.%hhu/%hhu",
+		         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
+		eprintf("%sing route to %s ...", add ? "accept" : "dropp", dst);
+
+		if (0 == (child = fork())) { /* child */
+			execlp("iptables", "iptables", "-w", add ? "-A" : "-D",
+			       "filter_clearnet", "-d", dst, "-j", "ACCEPT", (char*)NULL);
+			eprintf("failed to execlp() iptables:");
+		} else if (-1 != child) { /* parent */
+			if (wait(NULL) != child)
+				eprintf("failed to wait() for iptables:");
+		} else { /* fail */
+			eprintf("failed to fork for iptables:");
+		}
+
+		if (0 == (child = fork())) { /* child */
+			execlp("iptables", "iptables", "-w", "-t", "nat", add ? "-A" : "-D",
+			       "nat_clearnet", "-d", dst, "-j", "ACCEPT", (char*)NULL);
+			eprintf("failed to execlp() iptables -t nat:");
+		} else if (-1 != child) { /* parent */
+			if (wait(NULL) != child)
+				eprintf("failed to wait() for iptables -t nat:");
+		} else { /* fail */
+			eprintf("failed to fork for iptables -t nat:");
+		}
+
 		return MNL_CB_OK;
 	}
 

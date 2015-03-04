@@ -25,15 +25,10 @@ the uid of the `tor` user on your system):
 	:OUTPUT ACCEPT
 	# chain nat_clearnet accepts all packets that should not be transmitted over tor
 	:nat_clearnet -
-	-A nat_clearnet -d 0.0.0.0/8 -j ACCEPT
-	-A nat_clearnet -d 10.0.0.0/8 -j ACCEPT
-	-A nat_clearnet -d 127.0.0.0/8 -j ACCEPT
-	-A nat_clearnet -d 169.254.0.0/16 -j ACCEPT
-	-A nat_clearnet -d 172.16.0.0/12 -j ACCEPT
-	-A nat_clearnet -d 192.168.0.0/16 -j ACCEPT
-	-A nat_clearnet -d 224.0.0.0/24 -j ACCEPT
 	
 	# tor filtering (substitute the uid of your tor user)
+	-A OUTPUT -o lo -j ACCEPT
+	-A OUTPUT -d 127.0.0.0/8 -j ACCEPT
 	-A OUTPUT -m owner --uid-owner 111 -j ACCEPT
 	-A OUTPUT -p udp -m udp --dport 53 -j REDIRECT --to-ports 9053
 	-A OUTPUT -j nat_clearnet
@@ -44,15 +39,9 @@ the uid of the `tor` user on your system):
 	:OUTPUT DROP
 	# chain filter_clearnet accepts all packets that should not be transmitted over tor
 	:filter_clearnet -
-	-A filter_clearnet -d 0.0.0.0/8 -j ACCEPT
-	-A filter_clearnet -d 10.0.0.0/8 -j ACCEPT
-	-A filter_clearnet -d 127.0.0.0/8 -j ACCEPT
-	-A filter_clearnet -d 169.254.0.0/16 -j ACCEPT
-	-A filter_clearnet -d 172.16.0.0/12 -j ACCEPT
-	-A filter_clearnet -d 192.168.0.0/16 -j ACCEPT
-	-A filter_clearnet -d 224.0.0.0/24 -j ACCEPT
 	
 	-A OUTPUT -o lo -j ACCEPT
+	-A OUTPUT -d 127.0.0.0/8 -j ACCEPT
 	-A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
 	# see https://lists.torproject.org/pipermail/tor-talk/2014-March/032507.html
 	-A OUTPUT -m state --state INVALID -j DROP
@@ -70,8 +59,5 @@ setup:
 	DNSPort 9053
 
 ## TODO
-
-Use `fork`, `exec` and `wait` instead of `system` to avoid executing an extra
-shell process.
 
 config.h for the iptables calls.
