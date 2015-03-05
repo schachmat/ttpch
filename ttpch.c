@@ -11,6 +11,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "config.def.h"
+
+#define LENGTH(X)               (sizeof X / sizeof X[0])
+
+/* replace with define from libmnl.h after next libmnl release */
 #define SOCK_BUF_SIZ (sysconf(_SC_PAGESIZE) < 8192L ? sysconf(_SC_PAGESIZE) : 8192L)
 
 void eprintf(const char *format, ...)
@@ -39,6 +44,7 @@ void die(const char *msg)
 
 int cb(const struct nlmsghdr *nlh, void *data)
 {
+	const size_t lencalls[2] = {LENGTH(delcalls), LENGTH(addcalls)};
 	struct rtmsg *rthdr;
 	const struct nlattr *attr;
 	const char *d;
@@ -46,6 +52,8 @@ int cb(const struct nlmsghdr *nlh, void *data)
 	char dst[dstlen];
 	pid_t child;
 	int add;
+	int i, j;
+	char ***calls;
 
 	if (nlh->nlmsg_type != RTM_NEWROUTE && nlh->nlmsg_type != RTM_DELROUTE)
 		return MNL_CB_OK;
@@ -72,6 +80,7 @@ int cb(const struct nlmsghdr *nlh, void *data)
 			continue;
 
 		add = nlh->nlmsg_type == RTM_NEWROUTE;
+		calls = add ? addcalls : delcalls;
 		d = mnl_attr_get_payload(attr);
 
 		/* unfortunately iptables provides no stable API. The devs recommend
@@ -81,26 +90,26 @@ int cb(const struct nlmsghdr *nlh, void *data)
 		         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
 		eprintf("%sing route to %s ...", add ? "accept" : "dropp", dst);
 
-		if (0 == (child = fork())) { /* child */
-			execlp("iptables", "iptables", "-w", add ? "-A" : "-D",
-			       "filter_clearnet", "-d", dst, "-j", "ACCEPT", (char*)NULL);
-			eprintf("failed to execlp() iptables:");
-		} else if (-1 != child) { /* parent */
-			if (wait(NULL) != child)
-				eprintf("failed to wait() for iptables:");
-		} else { /* fail */
-			eprintf("failed to fork for iptables:");
-		}
+		for (i = 0; i < lencalls[add]; i++) {
+			for (j = 0; calls[i][j] != NULL; j++) {
+				if (0 == strcmp(calls[i][j], "-d") && calls[i][j+1] != NULL) {
+					eprintf("replacing %u", j);
+					calls[i][j+1] = dst;
 
-		if (0 == (child = fork())) { /* child */
-			execlp("iptables", "iptables", "-w", "-t", "nat", add ? "-A" : "-D",
-			       "nat_clearnet", "-d", dst, "-j", "ACCEPT", (char*)NULL);
-			eprintf("failed to execlp() iptables -t nat:");
-		} else if (-1 != child) { /* parent */
-			if (wait(NULL) != child)
-				eprintf("failed to wait() for iptables -t nat:");
-		} else { /* fail */
-			eprintf("failed to fork for iptables -t nat:");
+//					snprintf(calls[i][j], dstlen, "%hhu.%hhu.%hhu.%hhu/%hhu",
+//					         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
+				}
+			}
+
+			if (0 == (child = fork())) { /* child */
+				execvp(calls[i][0], calls[i]);
+				eprintf("failed to execvp() iptables:");
+			} else if (-1 != child) { /* parent */
+				if (wait(NULL) != child)
+					eprintf("failed to wait() for iptables:");
+			} else { /* fail */
+				eprintf("failed to fork for iptables:");
+			}
 		}
 
 		return MNL_CB_OK;
