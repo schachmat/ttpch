@@ -53,7 +53,7 @@ int cb(const struct nlmsghdr *nlh, void *data)
 	pid_t child;
 	int add;
 	int i, j;
-	char ***calls;
+	char **const *calls;
 
 	if (nlh->nlmsg_type != RTM_NEWROUTE && nlh->nlmsg_type != RTM_DELROUTE)
 		return MNL_CB_OK;
@@ -95,8 +95,8 @@ int cb(const struct nlmsghdr *nlh, void *data)
 				if (0 == strcmp(calls[i][j], "-d") && calls[i][j+1] != NULL) {
 					eprintf("replacing %u", j);
 					calls[i][j+1] = dst;
-
 //					snprintf(calls[i][j], dstlen, "%hhu.%hhu.%hhu.%hhu/%hhu",
+//
 //					         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
 				}
 			}
