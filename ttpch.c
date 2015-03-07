@@ -11,7 +11,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "config.def.h"
+#include "config.h"
 
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
@@ -88,27 +88,24 @@ int cb(const struct nlmsghdr *nlh, void *data)
 
 		snprintf(dst, dstlen, "%hhu.%hhu.%hhu.%hhu/%hhu",
 		         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
-		eprintf("%sing route to %s ...", add ? "accept" : "dropp", dst);
+		eprintf("%sed route to %s", add ? "add" : "dropp", dst);
 
 		for (i = 0; i < lencalls[add]; i++) {
 			for (j = 0; calls[i][j] != NULL; j++) {
-				if (0 == strcmp(calls[i][j], "-d") && calls[i][j+1] != NULL) {
-					eprintf("replacing %u", j);
+				if (0 == strcmp(calls[i][j], "-d") && calls[i][j+1] != NULL)
 					calls[i][j+1] = dst;
-//					snprintf(calls[i][j], dstlen, "%hhu.%hhu.%hhu.%hhu/%hhu",
-//
-//					         d[0], d[1], d[2], d[3], rthdr->rtm_dst_len);
-				}
 			}
+			if (0 == j)
+				continue;
 
 			if (0 == (child = fork())) { /* child */
 				execvp(calls[i][0], calls[i]);
-				eprintf("failed to execvp() iptables:");
+				eprintf("failed to execvp() %s:", calls[i][0]);
 			} else if (-1 != child) { /* parent */
 				if (wait(NULL) != child)
-					eprintf("failed to wait() for iptables:");
+					eprintf("failed to wait() for %s:", calls[i][0]);
 			} else { /* fail */
-				eprintf("failed to fork for iptables:");
+				eprintf("failed to fork for %s:", calls[i][0]);
 			}
 		}
 

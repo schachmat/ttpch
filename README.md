@@ -16,10 +16,11 @@ Run ttpch as a system level service. Logging information is sent to
 stdout/stderr. Of course it needs a fitting iptables ruleset loaded to work
 properly. If any errors occur, they are logged and ignored.
 
-ttpch has fixed calls to iptables. If they do not fit your iptables setup, they
-can be easily changed by editing the code. ttpch was created with the following
-iptables ruleset in mind (There are two places where you have to change `111` to
-the uid of the `tor` user on your system):
+ttpch can execute arbitrary commands on route add/delete events, which are not
+the default route. They can be configured in `config.h` after running make once.
+ttpch was created with the following iptables ruleset in mind (There are two
+places where you have to change `111` to the uid of the `tor` user on your
+system):
 
 	*nat
 	:OUTPUT ACCEPT
@@ -60,4 +61,4 @@ setup:
 
 ## TODO
 
-config.h for the iptables calls.
+more general netlink event handling?

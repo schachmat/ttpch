@@ -2,3 +2,4 @@
 *.swp
 ttpch.o
 ttpch
+config.h
