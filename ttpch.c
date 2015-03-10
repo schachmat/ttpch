@@ -1,4 +1,5 @@
-/* For license details see file LICENSE */
+/* Copyright 2015 Markus Teich <markus.teich(at)stusta.mhn.de>.
+ * For license details see file LICENSE */
 
 #include <errno.h>
 #include <libmnl/libmnl.h>
@@ -65,15 +66,8 @@ int cb(const struct nlmsghdr *nlh, void *data)
 		return MNL_CB_OK;
 	if (rthdr->rtm_scope != RT_SCOPE_LINK)
 		return MNL_CB_OK;
-/*	if (rthdr->rtm_table != RT_TABLE_MAIN)
-		return MNL_CB_OK; */
 	if (rthdr->rtm_type != RTN_UNICAST)
 		return MNL_CB_OK;
-
-/*	eprintf("ipv4 route-%s: %u %u %u %u   %x",
-			nlh->nlmsg_type == RTM_NEWROUTE ? "add" : "del",
-			rthdr->rtm_table, rthdr->rtm_protocol, rthdr->rtm_scope, rthdr->rtm_type, rthdr->rtm_flags);
-	mnl_nlmsg_fprintf(stdout, nlh, nlh->nlmsg_len, sizeof(struct rtmsg)); */
 
 	mnl_attr_for_each(attr, nlh, sizeof(struct rtmsg)) {
 		if (attr->nla_type != RTA_DST)
