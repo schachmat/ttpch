@@ -7,8 +7,8 @@ automatically adapt to your current internet setup.
 
 ## Dependencies
 
-ttpch requires [libmnl](https://netfilter.org/projects/libmnl/) and the iptables
-command.
+ttpch requires [libmnl](https://netfilter.org/projects/libmnl/) v1.0.4+ and the
+iptables command.
 
 ## Usage
 

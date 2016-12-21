@@ -16,9 +16,6 @@
 
 #define LENGTH(X)               (sizeof X / sizeof X[0])
 
-/* replace with define from libmnl.h after next libmnl release */
-#define SOCK_BUF_SIZ (sysconf(_SC_PAGESIZE) < 8192L ? sysconf(_SC_PAGESIZE) : 8192L)
-
 void eprintf(const char *format, ...)
 {
 	va_list ap;
@@ -123,13 +120,13 @@ int main(int argc, char* argv[])
 		goto exit;
 	}
 
-	if (!(buf = malloc(SOCK_BUF_SIZ))) {
+	if (!(buf = malloc(MNL_SOCKET_BUFFER_SIZE))) {
 		eprintf("could not malloc buffer:");
 		goto fail;
 	}
 
 	for(;;) {
-		if (-1 == (len = mnl_socket_recvfrom(nl, buf, SOCK_BUF_SIZ)))
+		if (-1 == (len = mnl_socket_recvfrom(nl, buf, MNL_SOCKET_BUFFER_SIZE)))
 			eprintf("failed to recv netlink msg:");
 
 		mnl_cb_run(buf, len, 0, 0, cb, NULL);
